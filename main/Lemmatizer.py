@@ -2,15 +2,19 @@
 import codecs
 import string
 import pymorphy2
+import re
+
 from bs4 import BeautifulSoup
 from nltk import word_tokenize
 from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
 
 # list of symbols to be removed
 MARKS = [',', '.', ':', '?', '«', '»', '-', '(', ')', '!', "“", "„", "–", '\'', "—", ';', "”", "...", "\'\'",
          "/**//**/"]
 WORDS_TXT = "words.txt"
 OUTPUT_TXT = "output.txt"
+INDEX_TXT = "inverted_index.txt"
 
 
 # parse text from html
@@ -82,6 +86,7 @@ def lemmatize():
 
     # dictionary with word-token elements
     lem_dict = {}
+    index_dict = {}
 
     for word in words:
         normal_form = get_normal_form(word.strip())
@@ -89,10 +94,13 @@ def lemmatize():
             # if the word doesn't exist, put it as a key
             if normal_form[0] not in lem_dict.keys():
                 lem_dict[normal_form[0]] = [word.strip()]
+                index_dict[normal_form] = [int(word[1])]
             # if the word already exist, put it's not normal form as a value
             else:
+                index_dict[normal_form].append(int(word[1]))
                 lem_dict[normal_form[0]].append(word.strip())
-
+    for key in index_dict.keys():
+        index_dict[key].sort()
     # write our result into output.txt file
     file = open(OUTPUT_TXT, "w", encoding="utf-8")
     for word, tokens in lem_dict.items():
@@ -100,6 +108,13 @@ def lemmatize():
         [file.write(" {token}:" + token) for token in set(tokens)]
         file.write("\n")
     file.close()
+    indexfile = open(INDEX_TXT, "w", encoding="utf-8")
+    for word, indexes in index_dict.items():
+        indexfile.write(f"{word}")
+        [indexfile.write(f" {index}") for index in set(indexes)]
+        indexfile.write("\n")
+    indexfile.close()
+    return(lem_dict, index_dict)
 
 
 # get the normal form of the word
@@ -116,6 +131,25 @@ def get_normal_form(word):
     return normalized_words
 
 
+def boolean_search(text, index_dict):
+
+    pattern = r"[^\w]"
+    text = re.sub(pattern, " ", text)
+    words = text.split()
+    # TODO - words = filter_words(words)
+
+    normal_words = []
+
+    for word in words:
+        normal_words.append(get_normal_form(word))
+
+    page_numbers = []
+    for word in normal_words:
+        if(word in index_dict.keys()):
+            page_numbers.extend(index_dict[word])
+    page_numbers.sort()
+    return page_numbers
+
 if __name__ == '__main__':
     # get list with files
     indexes = open("pages/index.txt", "r")
@@ -131,4 +165,8 @@ if __name__ == '__main__':
     write_clear_words_into_file(clear_text)
 
     # do the lemmatization
-    lemmatize()
+    lem_dict, index_dict = lemmatize()
+
+    text = "захватывающая история"
+    page_numbers = boolean_search(text, index_dict)
+    print(page_numbers)
