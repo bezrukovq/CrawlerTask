@@ -2,6 +2,7 @@ import codecs
 import string
 import pymorphy2
 import re
+import math
 from bs4 import BeautifulSoup
 from nltk import word_tokenize
 from nltk.corpus import stopwords
@@ -128,6 +129,45 @@ def boolean_search(text, index_dict):
     for numbers in page_numbers:
         union = union & numbers
     return union
+
+DOCS_COUNT = 105
+
+def get_words_count_from_docs():
+    docs_words_amount = {}
+    with open("pages/index.txt", "r") as index:
+        lines = index.readlines()
+        docs_numb = [line[: line.find(" ")] for line in lines]
+        for elt in docs_numb:
+            # создаем словарь формата -> номер документа: количество слов
+            docs_words_amount[elt] = list(remove_unnecessary_symbols(
+                parse_words(f"{elt}.html"))).__len__()
+    return docs_words_amount
+
+
+def compute_tf(in_doc, all_doc):
+    return in_doc / float(all_doc)
+
+
+def compute_idf(numb):
+    return math.log10(DOCS_COUNT / float(numb))
+
+
+def count_tf_idf():
+    docs_word_count = get_words_count_from_docs()
+    inv_index_file = open(INDEX_TXT, "r", encoding="utf-8")
+    lines = inv_index_file.readlines()
+    for line in lines:
+        line_text = line.split()
+        line_text[0] = -1
+        docs_count = {}
+        for docId in line_text:
+            docs_count[docId] += 1
+        for doc in docs_count:
+            tf = round(compute_tf(float(doc.get('count')), docs_word_count[doc.key]), 15)
+            idf = round(compute_idf(docs_count.__len__), 15)
+            tf_idf = tf * idf
+        # TODO save to file in format
+            # word: {docId} {idf} {tf-idf}, {docId} {idf} {tf-idf}...
 
 
 if __name__ == '__main__':
