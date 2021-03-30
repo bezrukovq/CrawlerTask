@@ -13,6 +13,7 @@ MARKS = [',', '.', ':', '?', '«', '»', '-', '(', ')', '!', "“", "„", "–"
 WORDS_TXT = "words.txt"
 OUTPUT_TXT = "output.txt"
 INDEX_TXT = "inverted_index.txt"
+TF_IDF = "tf_idf.txt"
 
 
 # parse text from html
@@ -130,7 +131,9 @@ def boolean_search(text, index_dict):
         union = union & numbers
     return union
 
+
 DOCS_COUNT = 105
+
 
 def get_words_count_from_docs():
     docs_words_amount = {}
@@ -139,8 +142,9 @@ def get_words_count_from_docs():
         docs_numb = [line[: line.find(" ")] for line in lines]
         for elt in docs_numb:
             # создаем словарь формата -> номер документа: количество слов
-            docs_words_amount[elt] = list(remove_unnecessary_symbols(
-                parse_words(f"{elt}.html"))).__len__()
+            words = parse_words(f"{elt}.txt")
+            symbols = remove_unnecessary_symbols(words)
+            docs_words_amount[elt] = list(symbols).__len__()
     return docs_words_amount
 
 
@@ -153,24 +157,42 @@ def compute_idf(numb):
 
 
 def count_tf_idf():
+    file = open(TF_IDF, "w", encoding="utf-8")
+
     docs_word_count = get_words_count_from_docs()
     inv_index_file = open(INDEX_TXT, "r", encoding="utf-8")
     lines = inv_index_file.readlines()
     for line in lines:
         line_text = line.split()
-        line_text[0] = -1
         docs_count = {}
-        for docId in line_text:
-            docs_count[docId] += 1
+
+        print(line_text[0], end=" : ")
+        file.write(line_text[0] + " : ")
+
+        for i in range(1, line_text.__len__()):
+            if line_text[i] in docs_count:
+                docs_count[line_text[i]] += 1
+            else:
+                docs_count[line_text[i]] = 1
+
         for doc in docs_count:
-            tf = round(compute_tf(float(docs_count[doc.key]), docs_word_count[doc.key]), 15)
-            idf = round(compute_idf(docs_count.__len__), 15)
+            count_curr_word = float(docs_count[doc])
+            count_total_words = docs_word_count[doc]
+            tf = round(compute_tf(count_curr_word, count_total_words), 15)
+
+            idf = round(compute_idf(len(docs_count)), 15)
             tf_idf = tf * idf
-        # TODO save to file in format
-            # word: {docId} {idf} {tf-idf}, {docId} {idf} {tf-idf}...
+
+            print(str(doc) + " " + str(idf) + " " + str(tf_idf), end="; ")
+            file.write(str(doc) + " " + str(idf) + " " + str(tf_idf) + "; ")
+
+        print("\n")
+        file.write("\n")
+
+    file.close()
 
 
-if __name__ == '__main__':
+def format_text():
     # clear files
     file = open(OUTPUT_TXT, "w", encoding="utf-8")
     file.close()
@@ -202,5 +224,9 @@ if __name__ == '__main__':
     index_file.close()
     text = "свежий сайт"
     page_numbers = boolean_search(text, index_dict)
+    #     the result will be {'26', '59', '5', '38', '77', '46', '30', '28', '58', '75', '40', '23', '1', '36', '78', '25', '95', '41', '70', '3', '35', '68', '105', '52', '20', '96', '2', '88', '18', '6', '17', '21', '50', '61', '104', '73', '33', '11', '60', '91', '4', '87', '62', '66', '71', '54', '12', '43', '47', '49', '53', '64', '103', '24', '8', '39', '80', '81', '22', '93', '32', '67', '85', '10', '76', '92', '9', '14', '89', '94', '51', '7', '74', '16', '99', '13', '69', '55', '72', '83', '42', '34', '44', '102', '86', '97', '63', '57', '19', '27', '90', '15', '29', '48', '37', '82', '79', '98', '65'}
     print(page_numbers)
-#     the result will be {'26', '59', '5', '38', '77', '46', '30', '28', '58', '75', '40', '23', '1', '36', '78', '25', '95', '41', '70', '3', '35', '68', '105', '52', '20', '96', '2', '88', '18', '6', '17', '21', '50', '61', '104', '73', '33', '11', '60', '91', '4', '87', '62', '66', '71', '54', '12', '43', '47', '49', '53', '64', '103', '24', '8', '39', '80', '81', '22', '93', '32', '67', '85', '10', '76', '92', '9', '14', '89', '94', '51', '7', '74', '16', '99', '13', '69', '55', '72', '83', '42', '34', '44', '102', '86', '97', '63', '57', '19', '27', '90', '15', '29', '48', '37', '82', '79', '98', '65'}
+
+
+if __name__ == '__main__':
+    count_tf_idf()
