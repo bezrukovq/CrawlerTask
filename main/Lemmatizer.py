@@ -163,7 +163,7 @@ def count_tf_idf():
         for docId in line_text:
             docs_count[docId] += 1
         for doc in docs_count:
-            tf = round(compute_tf(float(doc.get('count')), docs_word_count[doc.key]), 15)
+            tf = round(compute_tf(float(docs_count[doc.key]), docs_word_count[doc.key]), 15)
             idf = round(compute_idf(docs_count.__len__), 15)
             tf_idf = tf * idf
         # TODO save to file in format
