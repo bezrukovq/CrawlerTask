@@ -5,6 +5,8 @@ import math
 from bs4 import BeautifulSoup
 from nltk import word_tokenize
 from nltk.corpus import stopwords
+import streamlit as st
+import pandas as pd
 
 # list of symbols to be removed
 MARKS = [',', '.', ':', '?', '«', '»', '-', '(', ')', '!', "“", "„", "–", '\'', "—", ';', "”", "...", "\'\'",
@@ -322,6 +324,10 @@ def vector_search(text_to_search, index_dict, idf_dict, lengths_dict, docs_tf_id
     sorted_pages_list = []
     for item in cos_sim_list:
         sorted_pages_list.append(item[0])
+    links_list = [dict_file_to_link[file] for file in sorted_pages_list]
+    print(links_list)
+    df = pd.DataFrame(links_list)
+    st.table(df)
     return sorted_pages_list
 
 
@@ -340,8 +346,8 @@ if __name__ == '__main__':
     dict_length = get_words_count_in_all_docs_dict()
     dict_docs_tf_idf = get_tf_idf_dict()
     dict_file_to_link = get_file_link_dict()
-
-    text = "новый сериал"
-    pages_list = vector_search(text, dict_index, dict_idf, dict_length, dict_docs_tf_idf)
-    links_list = [dict_file_to_link[file] for file in pages_list]
-    print(pages_list)
+    st.title('Поисковая система')
+    title = st.text_input('Найти')
+    if st.button('Поиск'):
+        st.write('Результаты по запросу - ', title)
+        vector_search(title, dict_index, dict_idf, dict_length, dict_docs_tf_idf)
