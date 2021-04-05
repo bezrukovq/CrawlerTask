@@ -116,7 +116,7 @@ def get_normal_form(word):
 
 def boolean_search(normal_words, index_dict):
     page_numbers = []
-    for word in normal_words.split():
+    for word in normal_words:
         if word in index_dict:
             page_numbers.append(index_dict[word])
 
@@ -279,7 +279,7 @@ def vector_search(text_to_search, index_dict, idf_dict, lengths_dict, docs_tf_id
     normal_words = [get_normal_form(word)[0] for word in words]
 
     # list of pages which contains the words
-    pages = boolean_search(text_to_search, index_dict)
+    pages = boolean_search(normal_words, index_dict)
 
     # count of words in the text
     words_count = len(normal_words)
@@ -319,7 +319,7 @@ def vector_search(text_to_search, index_dict, idf_dict, lengths_dict, docs_tf_id
             lengths_dict[page_num]
         )
 
-    cos_sim_list = sorted(cos_sim_dict.items(), key=lambda distance: distance[1], reverse=True)
+    cos_sim_list = sorted(cos_sim_dict.items(), key=lambda distance: distance[1], reverse=False)
 
     sorted_pages_list = []
     for item in cos_sim_list:
