@@ -1,7 +1,6 @@
 import codecs
 import string
 import pymorphy2
-import re
 import math
 from bs4 import BeautifulSoup
 from nltk import word_tokenize
@@ -12,8 +11,11 @@ MARKS = [',', '.', ':', '?', '«', '»', '-', '(', ')', '!', "“", "„", "–"
          "/**//**/"]
 WORDS_TXT = "words.txt"
 OUTPUT_TXT = "output.txt"
-INDEX_TXT = "inverted_index.txt"
-TF_IDF = "tf_idf.txt"
+INVERTED_INDEX_TXT = "inverted_index.txt"
+WORDS_COUNT_TXT = "words_count.txt"
+TF_IDF_TXT = "tf_idf.txt"
+INDEX_TXT = "pages/index.txt"
+DOCS_COUNT = 105
 
 
 # parse text from html
@@ -110,41 +112,33 @@ def get_normal_form(word):
     return normalized_words
 
 
-def boolean_search(text, index_dict):
-    pattern = r"[^\w]"
-    text = re.sub(pattern, " ", text)
-    words = text.split()
-
-    normal_words = []
-
-    for word in words:
-        form = get_normal_form(word)[0]
-        normal_words.append(form)
-
+def boolean_search(normal_words, index_dict):
     page_numbers = []
-    for word in normal_words:
+    for word in normal_words.split():
         if word in index_dict:
             page_numbers.append(index_dict[word])
 
     union = page_numbers[0]
     for numbers in page_numbers:
-        union = union & numbers
+        union = set(union) & set(numbers)
     return union
 
 
-DOCS_COUNT = 105
-
-
-def get_words_count_from_docs():
+# returns dict {file : words_count}
+def get_words_count_in_all_docs():
     docs_words_amount = {}
+    file = open(WORDS_COUNT_TXT, "w", encoding="utf-8")
     with open("pages/index.txt", "r") as index:
         lines = index.readlines()
         docs_numb = [line[: line.find(" ")] for line in lines]
-        for elt in docs_numb:
+        for file_name in docs_numb:
             # создаем словарь формата -> номер документа: количество слов
-            words = parse_words(f"{elt}.txt")
+            words = parse_words(f"{file_name}.txt")
             symbols = remove_unnecessary_symbols(words)
-            docs_words_amount[elt] = list(symbols).__len__()
+            docs_words_amount[file_name] = list(symbols).__len__()
+            file.write(file_name + " " + str(docs_words_amount[file_name]) + "\n")
+
+    file.close()
     return docs_words_amount
 
 
@@ -157,34 +151,39 @@ def compute_idf(numb):
 
 
 def count_tf_idf():
-    file = open(TF_IDF, "w", encoding="utf-8")
+    file = open(TF_IDF_TXT, "w", encoding="utf-8")
 
-    docs_word_count = get_words_count_from_docs()
-    inv_index_file = open(INDEX_TXT, "r", encoding="utf-8")
-    lines = inv_index_file.readlines()
-    for line in lines:
-        line_text = line.split()
-        docs_count = {}
+    docs_word_count = get_words_count_in_all_docs()
+    inv_index_file = open(INVERTED_INDEX_TXT, "r", encoding="utf-8")
+    all_tokens_indexes = inv_index_file.readlines()
+    for line in all_tokens_indexes:
+        line_token_indexes = line.split()
 
-        print(line_text[0], end=" : ")
-        file.write(line_text[0] + " : ")
+        # dict {file_with_token : times_occurred}
+        docs_token_occured_count_dict = {}
 
-        for i in range(1, line_text.__len__()):
-            if line_text[i] in docs_count:
-                docs_count[line_text[i]] += 1
+        curr_token_from_line = line_token_indexes[0]
+        print(curr_token_from_line, end=" : ")
+        file.write(curr_token_from_line + " : ")
+
+        for i in range(1, line_token_indexes.__len__()):
+            if line_token_indexes[i] in docs_token_occured_count_dict:
+                docs_token_occured_count_dict[line_token_indexes[i]] += 1
             else:
-                docs_count[line_text[i]] = 1
+                docs_token_occured_count_dict[line_token_indexes[i]] = 1
 
-        for doc in docs_count:
-            count_curr_word = float(docs_count[doc])
-            count_total_words = docs_word_count[doc]
-            tf = round(compute_tf(count_curr_word, count_total_words), 15)
+        for current_doc in docs_token_occured_count_dict:
+            count_curr_doc_token_occurred = float(docs_token_occured_count_dict[current_doc])
+            count_total_words = docs_word_count[current_doc]
+            tf = round(compute_tf(count_curr_doc_token_occurred, count_total_words), 15)
 
-            idf = round(compute_idf(len(docs_count)), 15)
+            idf = round(compute_idf(len(docs_token_occured_count_dict)), 15)
+            dict_idf[current_doc] = idf
+
             tf_idf = tf * idf
 
-            print(str(doc) + " " + str(idf) + " " + str(tf_idf), end="; ")
-            file.write(str(doc) + " " + str(idf) + " " + str(tf_idf) + "; ")
+            print(str(current_doc) + " " + str(idf) + " " + str(tf_idf), end="; ")
+            file.write(str(current_doc) + " " + str(idf) + " " + str(tf_idf) + "; ")
 
         print("\n")
         file.write("\n")
@@ -192,41 +191,157 @@ def count_tf_idf():
     file.close()
 
 
-def format_text():
-    # clear files
-    file = open(OUTPUT_TXT, "w", encoding="utf-8")
-    file.close()
-    file_words = open(WORDS_TXT, "w", encoding="utf-8")
-    file_words.close()
-
-    indexes = open("pages/index.txt", "r")
-    indexes_lines = indexes.readlines()
-    file_names = [line[: line.find(" ")] for line in indexes_lines]
+def get_index_dict():
+    inv_index_file = open(INVERTED_INDEX_TXT, "r", encoding="utf-8")
+    all_tokens_indexes = inv_index_file.readlines()
     index_dict = {}
 
-    # get all alphabetic words and write it into the file of tokens and indexes
-    for file_name in file_names:
-        file_name_txt = "%s.txt" % file_name
-        all_words = parse_words(file_name_txt)
-        clear_words = remove_unnecessary_symbols(all_words)
-        write_clear_words_into_file(clear_words)
-        index_dict = (lemmatizing_and_indexing(clear_words, file_name, index_dict))
+    for line in all_tokens_indexes:
+        line_token_indexes = line.split()
+        index_dict[line_token_indexes[0]] = line_token_indexes[1:line_token_indexes.__len__()]
 
-    # write indexes into inverted_index.txt
-    index_file = open(INDEX_TXT, "w", encoding="utf-8")
-    index_dict = dict(sorted(index_dict.items()))
-    for word, indexes in index_dict.items():
-        index_dict[word] = set(indexes)
-        index_file.write(f"{word}")
-        [index_file.write(f" {index}") for index in indexes]
-        index_file.write("\n")
+    inv_index_file.close()
+    return index_dict
+
+
+# A dict with idf for every token
+def get_idf_dict(docs_count, index_dict):
+    idf_dict = {}
+    for token in index_dict.keys():
+        idf = math.log(docs_count / len(index_dict[token]))
+        idf_dict[token] = idf
+    return idf_dict
+
+
+# A dict with idf for every token for every document
+def get_tf_idf_dict():
+    inv_index_file = open(TF_IDF_TXT, "r", encoding="utf-8")
+    all_tokens_files_indexes = inv_index_file.readlines()
+
+    docs_tf_idf_dict = {}
+
+    for line in all_tokens_files_indexes:
+        line = line.strip()
+        line_token_indexes = line.split(":")
+        token = line_token_indexes[0].strip()
+        docs_tf_idf = line_token_indexes[1].split(";")
+        for docs_tf_idf_item in docs_tf_idf:
+            if docs_tf_idf_item != "":
+                values = docs_tf_idf_item.split()
+                doc = str(values[0])
+                if doc not in docs_tf_idf_dict:
+                    docs_tf_idf_dict[doc] = {}
+
+                tf = values[1]
+                idf = values[2]
+                docs_tf_idf_dict[doc][token] = idf
+
+    inv_index_file.close()
+    return docs_tf_idf_dict
+
+
+# A dict with words count
+def get_words_count_in_all_docs_dict():
+    inv_index_file = open(WORDS_COUNT_TXT, "r", encoding="utf-8")
+    all_tokens_files_indexes = inv_index_file.readlines()
+
+    words_count_dict = {}
+
+    for line in all_tokens_files_indexes:
+        line = line.strip()
+        line_token_indexes = line.split()
+        words_count_dict[line_token_indexes[0]] = line_token_indexes[1]
+
+    inv_index_file.close()
+    return words_count_dict
+
+
+# A dict with links to file
+def get_file_link_dict():
+    index_file = open(INDEX_TXT, "r", encoding="utf-8")
+    url_lines = index_file.readlines()
+
+    words_count_dict = {}
+
+    for line in url_lines:
+        line = line.strip()
+        line_token_indexes = line.split("->")
+        words_count_dict[line_token_indexes[0].strip()] = line_token_indexes[1].strip()
 
     index_file.close()
-    text = "свежий сайт"
-    page_numbers = boolean_search(text, index_dict)
-    #     the result will be {'26', '59', '5', '38', '77', '46', '30', '28', '58', '75', '40', '23', '1', '36', '78', '25', '95', '41', '70', '3', '35', '68', '105', '52', '20', '96', '2', '88', '18', '6', '17', '21', '50', '61', '104', '73', '33', '11', '60', '91', '4', '87', '62', '66', '71', '54', '12', '43', '47', '49', '53', '64', '103', '24', '8', '39', '80', '81', '22', '93', '32', '67', '85', '10', '76', '92', '9', '14', '89', '94', '51', '7', '74', '16', '99', '13', '69', '55', '72', '83', '42', '34', '44', '102', '86', '97', '63', '57', '19', '27', '90', '15', '29', '48', '37', '82', '79', '98', '65'}
-    print(page_numbers)
+    return words_count_dict
+
+
+def vector_search(text_to_search, index_dict, idf_dict, lengths_dict, docs_tf_idf_dict):
+    words = text_to_search.split()
+    normal_words = [get_normal_form(word)[0] for word in words]
+
+    # list of pages which contains the words
+    pages = boolean_search(text_to_search, index_dict)
+
+    # count of words in the text
+    words_count = len(normal_words)
+
+    # dict which contains number of each word in the next
+    words_count_dict = {}
+    for word in normal_words:
+        if word not in words_count_dict:
+            words_count_dict[word] = 1
+        else:
+            words_count_dict[word] += 1
+
+    # tf of every word in the text
+    tf_dict = dict.fromkeys(words_count_dict.keys())
+    for word in words_count_dict.keys():
+        tf_dict[word] = words_count_dict[word] / words_count
+
+    # tf-idf every word in the text
+    tf_idf_dict = dict.fromkeys(tf_dict.keys())
+    for word in tf_dict.keys():
+        tf_idf_dict[word] = tf_dict[word] * idf_dict.get(word)
+
+    # length of the text
+    tf_idf_sum = 0
+    for word in tf_idf_dict.keys():
+        tf_idf_sum += tf_idf_dict[word] * tf_idf_dict[word]
+    text_length = math.sqrt(tf_idf_sum)
+
+    cos_sim_dict = dict.fromkeys(pages)
+
+    # cosine similarity
+    for page_num in pages:
+        cos_sim_dict[page_num] = vector_distance(
+            tf_idf_dict,
+            docs_tf_idf_dict[page_num],
+            text_length,
+            lengths_dict[page_num]
+        )
+
+    cos_sim_list = sorted(cos_sim_dict.items(), key=lambda distance: distance[1], reverse=True)
+
+    sorted_pages_list = []
+    for item in cos_sim_list:
+        sorted_pages_list.append(item[0])
+    return sorted_pages_list
+
+
+def vector_distance(tf_idf_dict_x, tf_idf_dict_y, length_x, length_y):
+    cos_sim_sum = 0
+    for token in tf_idf_dict_x.keys():
+        if token in tf_idf_dict_y.keys():
+            cos_sim_sum += tf_idf_dict_x[token] + float(tf_idf_dict_y[token])
+    cos_sim = cos_sim_sum / (length_x * float(length_y))
+    return cos_sim
 
 
 if __name__ == '__main__':
-    count_tf_idf()
+    dict_index = get_index_dict()
+    dict_idf = get_idf_dict(DOCS_COUNT, dict_index)
+    dict_length = get_words_count_in_all_docs_dict()
+    dict_docs_tf_idf = get_tf_idf_dict()
+    dict_file_to_link = get_file_link_dict()
+
+    text = "новый сериал"
+    pages_list = vector_search(text, dict_index, dict_idf, dict_length, dict_docs_tf_idf)
+    links_list = [dict_file_to_link[file] for file in pages_list]
+    print(pages_list)
